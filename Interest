@@ -1,0 +1,115 @@
+% 质点离开竖直光滑半圆轨道的轨迹
+% 如运行有问题，建议使用R2020a或较新版本
+% R2016a或较旧版本请将微分方程函数、事件函数单独存为脚本函数
+% 如需转载此脚本请注明出处：
+% @YBH、ssrs@bilibili - https://space.bilibili.com/9943102
+clc;clear
+close all
+path=char('.\pic_seqs\');
+if exist(path,'dir')==7
+    rmdir(path,'s')% 删除旧文件
+end
+mkdir(path)
+dpi=1.25;% 系统缩放125%
+scr=[1920 1080];% 屏幕分辨率
+res=[1280 720];% 图像分辨率
+R=1;%轨道半径
+L=4*R;%水平轨长
+g=10;%重力加速度
+vu=sqrt(g*R);%单位速度
+tu=sqrt(R/g);%单位时间
+T=100*tu;%最大时间
+%半圆轨道
+tht=-0.5*pi:0.01:0.5*pi;
+xc=R*cos(tht);yc=R+R*sin(tht);
+%圆轨道
+tht=-pi:0.01:pi;
+xo=R*cos(tht);yo=R+R*sin(tht);
+odest=odeset('RelTol',1e-7,'AbsTol',1e-7,'NormControl','on',...
+    'MaxStep',tu*1e-1,'InitialStep',tu*1e-2,...
+    'Stats','off','Events',@(t,y) luodi_evns(t,y,R));
+v1=sqrt(2);%恰好到达圆轨道一半高度的速度
+v2=sqrt(5);%恰好到达圆轨道顶点的速度
+v3=sqrt(7/2);%恰好到达圆轨道底部的速度
+% 恰好通过轨道顶点时的轨迹
+v=v2*vu;
+[~,yd] = ode45(@(t,y) half_c(t,y,g,R),[0 T],[0 0 -0.5*pi v v 0]',odest);
+% 恰好落至圆轨道底部轨迹
+v=v3*vu;
+[~,yb] = ode45(@(t,y) half_c(t,y,g,R),[0 T],[0 0 -0.5*pi v v 0]',odest);
+for n=1:320
+    vv=n/40;
+    v=sqrt(n/40)*vu;
+    [~,y]=ode45(@(t,y) half_c(t,y,g,R),[0 T],[0 0 -0.5*pi v v 0]',odest);
+    %半圆轨道
+    plot(xc,yc,'Color','k','LineWidth',3)
+    hold on
+    axis equal
+    axis tight
+%     axis off
+    % 圆轨道
+    plot(xo,yo,'-.','Color','k','LineWidth',0.5)
+    %水平轨道
+    line([-L 0],[0 0],'linestyle','-','Color','k','LineWidth',3)
+    % 恰好通过最高点轨迹
+    pd=plot(yd(:,1),yd(:,2),'--','Color','#444444','LineWidth',1);
+    % 恰好落至圆轨道底部轨迹
+    pb=plot(yb(:,1),yb(:,2),'-.','Color','#444444','LineWidth',1);
+
+    % 小球位置及运动轨迹
+    p=plot(y(:,1),y(:,2),'-','Color','r','LineWidth',2);
+    legend([pd,pb,p],{'恰好通过最高点轨迹','恰好落至圆轨道底部轨迹','小球轨迹'},...
+        'FontSize',16,'FontName','黑体','Location','northwest');
+    legend('boxoff')
+    a = gca;
+    a.TickLabelInterpreter = 'latex';
+    title(['$ v_0= \sqrt{',num2str(vv,'%10.3f'),'gR} $'],'position',[-2.6 1.42],...
+        'FontName','黑体','FontSize',16,'Color','#000000','Interpreter','latex');
+    hold off
+    set(gcf,'Color','w');% 设置白色背景
+    fig=gcf;
+    fig.Units = 'pixel';
+    fig.Position = [(scr-res)/2,res]/dpi;% 居中显示
+    m(n)=getframe(fig);% 获取当前图像
+    imwrite(m(n).cdata,strcat(path,num2str(n),'.png'));% 保存图像为png
+    n=n+1;
+end
+% 微分方程
+function dydt = half_c(~,y,g,R)
+a=y(4)^2/R;% 向心加速度
+if y(2)==0 && y(1)<0
+    dx=y(4);
+    dy=0;
+    dtheta=0;
+    dv=0;
+    dvx=0;
+    dvy=0;
+else
+    if y(1)>=0 && g*sin(y(3))<a
+        dx=-y(4)*sin(y(3));
+        dy=y(4)*cos(y(3));
+        dtheta=y(4)/R;
+        dv=-g*cos(y(3));
+        dvx=-a*cos(y(3))-dv*sin(y(3));
+        dvy=-a*sin(y(3))+dv*cos(y(3));
+    else
+        dx=y(5);
+        dy=y(6);
+        dtheta=0;%记录脱离时角度,同dv=0
+        dv=0;%不再计算v,v保持脱离时的速度,同dtheta=0
+        dvx=0;
+        dvy=-g;
+    end
+end
+dydt=[dx dy dtheta dv dvx dvy]';% 需为列向量
+end
+% 事件函数
+function [position,isterminal,direction] = luodi_evns(~,y,R)
+if y(1)>0 && y(2)<R && y(3)>0
+    position = y(2)+sqrt(R^2-y(1)^2)-R;% 落在圆轨道
+else
+    position = y(2);% 落回水平面
+end
+isterminal = 1;
+direction = -1;
+end
